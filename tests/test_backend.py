@@ -331,3 +331,20 @@ def test_files_endpoint():
 def test_repo_endpoint_rejects_non_github():
     r = client.post("/api/scan/repo", json={"target": "http://169.254.169.254/"}, headers={"x-real-ip": "203.0.113.50"})
     assert r.status_code == 400
+
+
+def test_forwarded_ip_is_ignored_without_trusted_proxy(monkeypatch):
+    monkeypatch.delenv("VULNGUARD_TRUST_PROXY", raising=False)
+    from backend.api.routes import client_ip
+    request = Request({
+        "type": "http",
+        "method": "GET",
+        "path": "/",
+        "headers": [
+            (b"x-real-ip", b"203.0.113.99"),
+        ],
+        "client": ("127.0.0.1", 12345),
+        "server": ("testserver", 80),
+        "scheme": "http",
+    })
+    assert client_ip(request) == "127.0.0.1"
