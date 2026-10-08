@@ -90,21 +90,19 @@ class _CappedStream(httpx.AsyncByteStream):
 
 class GuardedTransport(httpx.AsyncBaseTransport):
     def __init__(self, max_body: int = MAX_BODY_BYTES, allow_private: bool = False, **kwargs):
-        self._inner = httpx.AsyncHTTPTransport(**kwargs)
+        self._inner = httpx.AsyncHTTPTransport(trust_env=False, **kwargs)
         self._max_body = max_body
         self._allow_private = allow_private
-        self._checked: set[tuple[str, int]] = set()
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         if request.url.scheme not in ALLOWED_SCHEMES:
             raise httpx.UnsupportedProtocol(f"Blocked scheme: {request.url.scheme}")
         key = (request.url.host, request.url.port or (443 if request.url.scheme == "https" else 80))
-        if not self._allow_private and key not in self._checked:
+        if not self._allow_private:
             try:
                 await assert_public_host(*key)
             except UnsafeTargetError as exc:
                 raise httpx.ConnectError(str(exc), request=request) from exc
-            self._checked.add(key)
 
         response = await self._inner.handle_async_request(request)
         return httpx.Response(
