@@ -1,3 +1,4 @@
+import os
 import time
 from collections import OrderedDict, defaultdict, deque
 
@@ -67,9 +68,12 @@ repo_limiter = RateLimiter(limit=5, window=60)
 
 
 def client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    if os.getenv("VULNGUARD_TRUST_PROXY", "").lower() == "true":
+        forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            candidate = forwarded.split(",")[0].strip()
+            if candidate:
+                return candidate
     return request.client.host if request.client else "unknown"
 
 
