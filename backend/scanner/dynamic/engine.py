@@ -38,7 +38,7 @@ class DynamicScanner:
         async with httpx.AsyncClient(
             transport=GuardedTransport(allow_private=self.allow_private),
             timeout=httpx.Timeout(10.0, connect=5.0),
-            limits=httpx.Limits(max_connections=12),
+            limits=httpx.Limits(max_connections=12, max_keepalive_connections=6),
             max_redirects=5,
             headers={"User-Agent": "VulnGuard/1.1 Security Scanner", "Accept-Encoding": "identity"},
         ) as client:
