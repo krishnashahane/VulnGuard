@@ -15,11 +15,11 @@ PATCH_TEMPLATES: dict[VulnType, dict] = {
             'requests==2.31.0'
         ),
         "patched_code": (
-            '# requirements.txt (versions from the finding)\n'
-            'django==5.2.16\n'
-            'requests==2.33.0\n\n'
-            '# CI step\n'
-            'pip install pip-audit && pip-audit -r requirements.txt'
+            '# Upgrade each dependency to the fixed version reported by VulnGuard.\n'
+            '# Example for requirements.txt:\n'
+            'django==<fixed-version-from-finding>\n'
+            'requests==<fixed-version-from-finding>\n\n'
+            '# CI step\n            'pip install pip-audit && pip-audit -r requirements.txt'
         ),
         "references": [
             "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/",
@@ -107,6 +107,7 @@ PATCH_TEMPLATES: dict[VulnType, dict] = {
         ),
         "patched_code": (
             'import ipaddress\n'
+            'import socket\n'
             'from urllib.parse import urlparse\n'
             'import requests\n\n'
             'ALLOWED_HOSTS = {"api.example.com", "cdn.example.com"}\n\n'
