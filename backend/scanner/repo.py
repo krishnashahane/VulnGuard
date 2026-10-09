@@ -99,7 +99,7 @@ async def fetch_repo(target: str, client: httpx.AsyncClient | None = None) -> Re
     client = client or httpx.AsyncClient(timeout=httpx.Timeout(25.0, connect=8.0), follow_redirects=False)
 
     try:
-        async with client.stream("GET", url, headers={"User-Agent": "VulnGuard/1.1"}) as resp:
+        async with client.stream("GET", url, headers={"User-Agent": "VulnGuard/1.2"}) as resp:
             if resp.status_code == 404:
                 raise RepoError("Repository or branch not found. Only public repositories can be scanned.")
             if resp.status_code != 200:

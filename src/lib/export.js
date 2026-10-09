@@ -1,4 +1,4 @@
-import { SEVERITIES, countBySeverity } from './severity';
+import { SEVERITIES, countBySeverity, riskBand, riskScore } from './severity';
 
 function download(filename, content, type) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -18,6 +18,7 @@ export function exportJson(scan) {
 
 export function exportMarkdown(scan) {
   const counts = countBySeverity(scan.vulnerabilities);
+  const score = riskScore(scan.vulnerabilities);
   const patchFor = patchIndex(scan.patches);
   const fence = (code) => `\`\`\`\n${code.replace(/```/g, '`​``')}\n\`\`\``;
   const lines = [
@@ -26,9 +27,15 @@ export function exportMarkdown(scan) {
     `- **Target:** ${scan.target}`,
     `- **Type:** ${{ dynamic: 'Dynamic (DAST)', repo: 'Repository (SAST + dependencies)' }[scan.scan_type] || 'Static (SAST)'}`,
     `- **Completed:** ${new Date(scan.completed_at || scan.started_at).toISOString()}`,
+    `- **Risk score:** ${score}% (${riskBand(score, scan.vulnerabilities.length).label})`,
     `- **Findings:** ${scan.vulnerabilities.length} (${SEVERITIES.map((s) => `${s} ${counts[s]}`).join(', ')})`,
     '',
   ];
+  if (scan.checks?.length) {
+    lines.push('| Check | Result |', '| --- | --- |');
+    for (const c of scan.checks) lines.push(`| ${c.name} | ${c.status.replace('_', ' ')}: ${c.detail} |`);
+    lines.push('');
+  }
   for (const w of scan.warnings || []) lines.push(`> Note: ${w}`, '');
   scan.vulnerabilities.forEach((v, i) => {
     lines.push(`## ${i + 1}. [${v.severity}] ${v.title}`, '');

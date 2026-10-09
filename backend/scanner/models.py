@@ -23,6 +23,24 @@ SEVERITY_ORDER = {
 }
 
 
+# Share of risk one finding contributes; findings combine as independent events, so the score
+# rises quickly with severe issues and never exceeds 100. One CRITICAL alone scores 50.
+RISK_WEIGHTS = {
+    Severity.CRITICAL: 0.5,
+    Severity.HIGH: 0.3,
+    Severity.MEDIUM: 0.06,
+    Severity.LOW: 0.02,
+    Severity.INFO: 0.0,
+}
+
+
+def risk_score(severities) -> int:
+    safe = 1.0
+    for s in severities:
+        safe *= 1 - RISK_WEIGHTS[s]
+    return round((1 - safe) * 100)
+
+
 class VulnType(str, Enum):
     XSS = "XSS"
     SQLI = "SQLI"
@@ -37,6 +55,7 @@ class VulnType(str, Enum):
     VULNERABLE_COMPONENT = "VULNERABLE_COMPONENT"
     LOGGING_FAILURE = "LOGGING_FAILURE"
     COMMAND_INJECTION = "COMMAND_INJECTION"
+    INSECURE_COOKIE = "INSECURE_COOKIE"
 
 
 class Vulnerability(BaseModel):
@@ -73,6 +92,13 @@ class PatchSuggestion(BaseModel):
     references: list[str] = []
 
 
+class CheckResult(BaseModel):
+    name: str
+    status: str  # passed | failed | not_tested | skipped | error
+    findings: int = 0
+    detail: str = ""
+
+
 class ScanResult(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     target: str
@@ -84,12 +110,15 @@ class ScanResult(BaseModel):
     summary: dict = {}
     warnings: list[str] = []
     stats: dict = {}
+    checks: list[CheckResult] = []
+    risk_score: int = 0
 
     def compute_summary(self) -> dict:
         counts = {s.value: 0 for s in Severity}
         for v in self.vulnerabilities:
             counts[v.severity.value] += 1
         self.summary = {"total": len(self.vulnerabilities), **counts}
+        self.risk_score = risk_score(v.severity for v in self.vulnerabilities)
         return self.summary
 
 

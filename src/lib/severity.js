@@ -16,10 +16,19 @@ export function countBySeverity(vulns = []) {
   return counts;
 }
 
-export function riskLabel(counts) {
-  if (counts.CRITICAL) return { label: 'Critical risk', tone: 'CRITICAL' };
-  if (counts.HIGH) return { label: 'High risk', tone: 'HIGH' };
-  if (counts.MEDIUM) return { label: 'Moderate risk', tone: 'MEDIUM' };
-  if (counts.LOW || counts.INFO) return { label: 'Low risk', tone: 'LOW' };
+// Mirrors backend/scanner/models.py: findings combine as independent risks, so one critical alone is 50%.
+const RISK_WEIGHTS = { CRITICAL: 0.5, HIGH: 0.3, MEDIUM: 0.06, LOW: 0.02, INFO: 0 };
+
+export function riskScore(vulns = []) {
+  const safe = vulns.reduce((p, v) => p * (1 - RISK_WEIGHTS[normalizeSeverity(v.severity)]), 1);
+  return Math.round((1 - safe) * 100);
+}
+
+export function riskBand(score, findings = 0) {
+  if (score >= 50) return { label: 'Critical risk', tone: 'CRITICAL' };
+  if (score >= 25) return { label: 'High risk', tone: 'HIGH' };
+  if (score >= 5) return { label: 'Moderate risk', tone: 'MEDIUM' };
+  if (score >= 1) return { label: 'Low risk', tone: 'LOW' };
+  if (findings) return { label: 'Informational only', tone: 'INFO' };
   return { label: 'No issues found', tone: null };
 }

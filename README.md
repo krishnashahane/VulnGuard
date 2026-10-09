@@ -4,7 +4,8 @@ VulnGuard is a defensive web and source-code vulnerability scanner with a React/
 
 It provides:
 
-- **Dynamic scanning (DAST):** security headers, CORS, CSRF, information disclosure, XSS, SQL injection, and SSRF checks against public HTTP(S) targets.
+- **Dynamic scanning (DAST):** security headers, cookie flags, CORS, CSRF, information disclosure, XSS, SQL injection, and SSRF checks against public HTTP(S) targets. Same-site links with query parameters on the landing page are discovered and injection-tested automatically, and each check reports passed, failed or not tested.
+- **Risk score:** every scan gets a 0–100% score. Findings combine as independent risks (critical 50%, high 30%, medium 6%, low 2%, info 0%), so one critical finding alone scores 50% and the score never exceeds 100%. Unreachable sites return an error instead of a clean report.
 - **Static scanning (SAST):** hardcoded secrets, unsafe SQL/command construction, dangerous code execution, insecure configuration, authentication issues, and dependency advisories.
 - **Repository scanning:** scans public GitHub repositories in memory without checking them out to disk.
 - **Patch suggestions:** generates remediation examples linked to detected vulnerability types.

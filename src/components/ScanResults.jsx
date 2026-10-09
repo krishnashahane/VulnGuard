@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'motion/react';
 import { AlertTriangle, Braces, FileDown, FileText, Printer, Search, ShieldCheck } from 'lucide-react';
 import VulnerabilityCard from './VulnerabilityCard';
-import { SEVERITIES, SEVERITY_META, countBySeverity, riskLabel } from '../lib/severity';
+import RiskGauge from './RiskGauge';
+import CheckList from './CheckList';
+import { SEVERITIES, SEVERITY_META, countBySeverity, riskBand, riskScore } from '../lib/severity';
 import { exportJson, exportMarkdown, patchIndex } from '../lib/export';
 
 function duration(scan) {
@@ -28,7 +30,8 @@ export default function ScanResults({ scan, showReportLink = false, scrollIntoVi
   const patches = useMemo(() => patchIndex(scan?.patches), [scan]);
   if (!scan) return null;
 
-  const risk = riskLabel(counts);
+  const score = riskScore(vulns);
+  const risk = riskBand(score, vulns.length);
   const q = query.trim().toLowerCase();
   const visible = vulns.filter(
     (v) =>
@@ -37,6 +40,7 @@ export default function ScanResults({ scan, showReportLink = false, scrollIntoVi
   );
   const typeLabel = { dynamic: 'Dynamic scan', repo: 'Repository scan' }[scan.scan_type] || 'Static analysis';
   const filesScanned = scan.stats?.files_scanned;
+  const pagesTested = scan.stats?.pages_tested;
   const took = duration(scan);
   const finished = new Date(scan.completed_at || scan.started_at);
 
@@ -51,16 +55,21 @@ export default function ScanResults({ scan, showReportLink = false, scrollIntoVi
     >
       <div className="surface p-5 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 space-y-1.5">
-            <p className={`text-sm font-medium ${risk.tone ? SEVERITY_META[risk.tone].text : 'text-primary'}`}>{risk.label}</p>
-            <h2 className="break-all font-mono text-lg font-medium sm:text-xl">{scan.target}</h2>
-            <p className="text-sm muted">
-              {typeLabel}
-              {filesScanned > 1 && ` of ${filesScanned} files`}
-              {' on '}
-              {Number.isNaN(finished.getTime()) ? 'unknown date' : finished.toLocaleString()}
-              {took && `, took ${took}`}
-            </p>
+          <div className="flex min-w-0 items-start gap-4 sm:items-center sm:gap-5">
+            <RiskGauge score={score} tone={risk.tone} />
+            <div className="min-w-0 space-y-1.5">
+              <p className={`text-sm font-medium ${risk.tone ? SEVERITY_META[risk.tone].text : 'text-primary'}`}>{risk.label}</p>
+              <h2 className="break-all font-mono text-base font-medium sm:text-xl">{scan.target}</h2>
+              <p className="text-sm muted">
+                {typeLabel}
+                {filesScanned > 1 && ` of ${filesScanned} files`}
+                {pagesTested > 1 && ` across ${pagesTested} pages`}
+                {' on '}
+                {Number.isNaN(finished.getTime()) ? 'unknown date' : finished.toLocaleString()}
+                {took && `, took ${took}`}
+              </p>
+              <p className="text-xs muted">Weighted by severity. One critical finding alone scores 50%.</p>
+            </div>
           </div>
 
           <div className="no-print flex flex-wrap gap-2">
@@ -80,6 +89,8 @@ export default function ScanResults({ scan, showReportLink = false, scrollIntoVi
             </button>
           </div>
         </div>
+
+        {scan.checks?.length > 0 && <CheckList checks={scan.checks} />}
 
         <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-6" role="group" aria-label="Filter by severity">
           <button

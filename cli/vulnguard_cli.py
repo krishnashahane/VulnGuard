@@ -46,6 +46,7 @@ from backend.scanner.dynamic.engine import DynamicScanner
 from backend.scanner.dynamic.netguard import UnsafeTargetError, validate_target_url
 from backend.scanner.static.engine import StaticScanner
 from backend.patcher.engine import PatchEngine
+from backend.scanner.models import risk_score
 from backend.scanner.repo import RepoError, TEXT_EXTENSIONS, SKIP_DIRS, fetch_repo
 
 if not sys.stdout.isatty() or os.getenv("NO_COLOR"):
@@ -61,6 +62,9 @@ def filter_vulnerabilities(vulns, min_severity):
         return vulns
     min_level = SEVERITY_LEVELS.get(min_severity.upper(), 0)
     return [v for v in vulns if SEVERITY_LEVELS.get(v.get('severity', 'INFO').upper(), 0) >= min_level]
+
+RISK_BANDS = [(50, 'critical'), (25, 'high'), (5, 'moderate'), (1, 'low'), (0, 'no issues found')]
+
 
 def format_text_output(result_data, options):
     target = result_data.get('target', 'Unknown')
@@ -87,6 +91,21 @@ def format_text_output(result_data, options):
     
     print(f"{COLORS['CYAN']}━━━ Scan Results ━━━━━━━━━━━━━━━━━━━━━━━━━━━━{COLORS['RESET']}\n")
     
+    score = result_data.get('risk_score', 0)
+    band = next(label for limit, label in RISK_BANDS if score >= limit)
+    if not score and vulns:
+        band = 'informational only'
+    print(f"{COLORS['BOLD']}Risk score:{COLORS['RESET']} {score}% ({band})")
+    checks = result_data.get('checks') or []
+    if checks:
+        failed = sum(c['status'] == 'failed' for c in checks)
+        tested = sum(c['status'] in ('passed', 'failed') for c in checks)
+        print(f"{COLORS['BOLD']}Checks failed:{COLORS['RESET']} {failed} of {tested} tested")
+        for c in checks:
+            mark = {'passed': ('SUCCESS', 'PASS'), 'failed': ('CRITICAL', 'FAIL')}.get(c['status'], ('INFO', c['status'].replace('_', ' ').upper()))
+            print(f"  {COLORS[mark[0]]}{mark[1]:<10}{COLORS['RESET']} {c['name']:<24} {c['detail']}")
+    print()
+
     print(f"Found {COLORS['BOLD']}{len(vulns)}{COLORS['RESET']} vulnerabilities:")
     print(f"  {COLORS['CRITICAL']}CRITICAL: {counts['CRITICAL']}{COLORS['RESET']}  |  "
           f"{COLORS['HIGH']}HIGH: {counts['HIGH']}{COLORS['RESET']}  |  "
@@ -246,7 +265,9 @@ async def run_scan(args):
             'scan_type': scan_type,
             'started_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'vulnerabilities': vuln_dicts,
-            'patches': [p.model_dump() if hasattr(p, 'model_dump') else p.dict() for p in patches]
+            'patches': [p.model_dump() if hasattr(p, 'model_dump') else p.dict() for p in patches],
+            'risk_score': risk_score(v.severity for v in vulns),
+            'checks': [c.model_dump() for c in getattr(scanner, 'checks', [])],
         }
     except Exception as e:
         print_color(f"Scan failed: {str(e)}", 'CRITICAL', file=sys.stderr)

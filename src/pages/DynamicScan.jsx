@@ -7,7 +7,7 @@ import ScanResults from '../components/ScanResults';
 import { scanUrl } from '../lib/api';
 import { useScan } from '../hooks/useScan';
 
-const CHECKS = ['Security headers', 'CORS', 'CSRF', 'Information disclosure', 'XSS', 'SQL injection', 'SSRF'];
+const CHECKS = ['Security headers', 'Cookies', 'CORS', 'CSRF', 'Information disclosure', 'XSS', 'SQL injection', 'SSRF'];
 
 function validateUrl(raw) {
   const value = raw.trim();
@@ -71,7 +71,7 @@ export default function DynamicScan() {
   return (
     <div className="page space-y-8 py-10 sm:py-14">
       <PageHeader icon={Globe} title="Dynamic scan">
-        Probe a live site for injection, misconfiguration and exposure issues. Private and internal addresses are blocked.
+        Probe a live site for injection, misconfiguration and exposure issues, and get a risk score. Private and internal addresses are blocked.
       </PageHeader>
 
       <form onSubmit={submit} noValidate className="surface space-y-5 p-5 sm:p-6">
@@ -103,7 +103,7 @@ export default function DynamicScan() {
             </button>
           </div>
           <p id="target-help" className={`text-xs ${urlError ? 'text-error' : 'muted'}`}>
-            {urlError || 'Include query parameters to test them for XSS, SQL injection and SSRF.'}
+            {urlError || 'Links with query parameters on the page are tested automatically. Add your own, like ?q=test, to target a specific input.'}
           </p>
         </div>
 

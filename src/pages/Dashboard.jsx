@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { ArrowRight, Code2, FileUp, FolderGit2, Globe, Trash2 } from 'lucide-react';
 import VulnerabilityCard from '../components/VulnerabilityCard';
 import { clearScans, importScan, removeScan, useScanHistory } from '../lib/history';
-import { SEVERITY_META, countBySeverity } from '../lib/severity';
+import { SEVERITY_META, countBySeverity, riskBand, riskScore } from '../lib/severity';
 import { useTheme } from '../lib/theme';
 
 const Particles = lazy(() => import('../components/Particles'));
@@ -29,11 +29,12 @@ const EXAMPLE_PATCH = {
 const LIVE_CHECKS = [
   'Reflected XSS in parameters and forms',
   'Error and time-based SQL injection',
-  'Missing CSRF tokens, SameSite cookies',
+  'Missing CSRF tokens and cookie flags',
   'Security headers and HTTPS',
   'CORS origin reflection and wildcards',
   'SSRF through URL parameters',
   'Exposed .env, .git and backups',
+  'Risk score and pass/fail per check',
 ];
 
 const CODE_CHECKS = [
@@ -73,7 +74,7 @@ function Hero() {
             Find the flaw before someone else does.
           </motion.h1>
           <motion.p {...rise(0.08)} className="mt-5 max-w-[46ch] text-lg leading-relaxed muted">
-            Probe live sites and source code for OWASP Top 10 issues, then get a fix you can paste.
+            Probe live sites and source code for OWASP Top 10 issues, see a risk score, then get a fix you can paste.
           </motion.p>
           <motion.div {...rise(0.16)} className="mt-8 flex flex-wrap gap-3">
             <Link to="/scan/dynamic" className="btn btn-primary gap-2 active:scale-[0.98]">
@@ -250,6 +251,15 @@ function RecentScans() {
                       <span className="block truncate font-mono text-sm">{s.target}</span>
                       <span className="text-xs muted">{new Date(s.completed_at || s.started_at).toLocaleString()}</span>
                     </Link>
+                    {(() => {
+                      const score = riskScore(s.vulnerabilities);
+                      const { tone } = riskBand(score, s.vulnerabilities?.length);
+                      return (
+                        <span className={`w-12 text-right font-mono text-sm font-medium tabular-nums ${tone ? SEVERITY_META[tone].text : 'text-primary'}`} title="Risk score">
+                          {score}%
+                        </span>
+                      );
+                    })()}
                     <span className="hidden gap-3 font-mono text-xs tabular-nums sm:flex">
                       {['CRITICAL', 'HIGH', 'MEDIUM'].map((sev) => (
                         <span key={sev} className={c[sev] ? SEVERITY_META[sev].text : 'muted opacity-50'} title={SEVERITY_META[sev].label}>

@@ -37,6 +37,7 @@ export function saveScan(scan) {
 }
 
 const SEVERITY_VALUES = new Set(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']);
+const CHECK_STATUSES = new Set(['passed', 'failed', 'not_tested', 'skipped', 'error']);
 const str = (v, max = 4000) => (typeof v === 'string' ? v.slice(0, max) : '');
 
 /** Validate and normalise a report loaded from a JSON export. Throws on anything that is not one. */
@@ -74,7 +75,15 @@ export function importScan(raw) {
     patches,
     summary: {},
     warnings: Array.isArray(raw.warnings) ? raw.warnings.map((w) => str(w, 300)).slice(0, 20) : [],
-    stats: raw.stats && typeof raw.stats === 'object' ? { files_scanned: Number(raw.stats.files_scanned) || undefined } : {},
+    stats: raw.stats && typeof raw.stats === 'object'
+      ? { files_scanned: Number(raw.stats.files_scanned) || undefined, pages_tested: Number(raw.stats.pages_tested) || undefined }
+      : {},
+    checks: (Array.isArray(raw.checks) ? raw.checks : []).slice(0, 20).map((c) => ({
+      name: str(c?.name, 60),
+      status: CHECK_STATUSES.has(c?.status) ? c.status : 'error',
+      findings: Number(c?.findings) || 0,
+      detail: str(c?.detail, 200),
+    })).filter((c) => c.name),
   };
   saveScan(scan);
   return scan;

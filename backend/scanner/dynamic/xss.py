@@ -42,6 +42,12 @@ class XSSScanner:
 
         return vulns
 
+    async def scan_params(self, url: str) -> list[Vulnerability]:
+        """Query-parameter checks only, for URLs discovered on the landing page."""
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        return await self._test_params(parsed, params) if params else []
+
     async def _test_params(self, parsed, params: dict) -> list[Vulnerability]:
         vulns = []
         for param_name in params:

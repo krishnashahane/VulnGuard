@@ -152,7 +152,12 @@ vuln_app = FastAPI()
 
 @vuln_app.get("/", response_class=HTMLResponse)
 async def home(q: str = ""):
-    return f'<html><body>Hello {q}<form method="post" action="/login"><input name="user"></form></body></html>'
+    page = HTMLResponse(
+        f'<html><body>Hello {q}<a href="/item?id=1">item</a><a href="https://other.example/?x=1">ext</a>'
+        f'<form method="post" action="/login"><input name="user"></form></body></html>'
+    )
+    page.set_cookie("sessionid", "abc", samesite="lax")
+    return page
 
 
 @vuln_app.get("/item", response_class=HTMLResponse)
@@ -184,7 +189,9 @@ def scan_local(url: str):
 
     eng.GuardedTransport = LocalTransport
     try:
-        return run(scanner.scan(url)), scanner.warnings
+        vulns = run(scanner.scan(url))
+        scan_local.last = scanner
+        return vulns, scanner.warnings
     finally:
         eng.GuardedTransport = original
 
@@ -199,6 +206,58 @@ def test_dynamic_scan_detects_real_issues_without_soft404_noise():
     assert any("Plain HTTP" in t for t in titles)
     assert not any("Strict-Transport-Security" in t for t in titles)
     assert warnings == []
+
+
+def test_dynamic_scan_discovers_inputs_from_bare_url():
+    vulns, _ = scan_local("http://testserver/")
+    scanner = scan_local.last
+    assert scanner.discovered == ["http://testserver/item?id=1"]
+    sqli = [v for v in vulns if v.type == VulnType.SQLI]
+    assert sqli and sqli[0].location.startswith("/item · ")
+    checks = {c.name: c for c in scanner.checks}
+    assert checks["SQL injection"].status == "failed"
+    assert checks["Cookies"].status == "failed"
+    assert {c.status for c in scanner.checks} <= {"passed", "failed", "not_tested"}
+    assert len(checks) == 8
+
+
+def test_cookie_without_httponly_is_flagged():
+    vulns, _ = scan_local("http://testserver/")
+    assert any(v.type == VulnType.INSECURE_COOKIE and "HttpOnly" in v.title for v in vulns)
+
+
+def test_input_checks_not_tested_without_inputs(monkeypatch):
+    import backend.scanner.dynamic.engine as eng
+    monkeypatch.setattr(eng, "discover_inputs", lambda *_: [])
+    scan_local("http://testserver/item")
+    checks = {c.name: c.status for c in scan_local.last.checks}
+    assert checks["SQL injection"] == checks["SSRF"] == checks["XSS"] == "not_tested"
+
+
+def test_unreachable_target_is_an_error_not_a_clean_report(monkeypatch):
+    from backend.scanner.dynamic.engine import TargetUnreachable
+
+    async def boom(self, url):
+        raise TargetUnreachable("Could not connect to the site.")
+
+    async def ok(url):
+        return url
+
+    monkeypatch.setenv("VULNGUARD_TRUST_PROXY", "true")
+    monkeypatch.setattr(DynamicScanner, "scan", boom)
+    monkeypatch.setattr("backend.api.routes.validate_target_url", ok)
+    r = client.post("/api/scan/dynamic", json={"target": "https://down.example"}, headers={"x-real-ip": "203.0.113.61"})
+    assert r.status_code == 502 and "Could not connect" in r.json()["detail"]
+
+
+def test_risk_score():
+    from backend.scanner.models import risk_score
+    assert risk_score([]) == 0
+    assert risk_score([Severity.CRITICAL]) == 50
+    assert risk_score([Severity.CRITICAL, Severity.CRITICAL]) == 75
+    assert risk_score([Severity.INFO] * 50) == 0
+    assert 0 < risk_score([Severity.LOW]) < risk_score([Severity.MEDIUM]) < risk_score([Severity.HIGH])
+    assert risk_score([Severity.CRITICAL] * 40) == 100
 
 
 def test_dynamic_scan_detects_error_based_sqli():

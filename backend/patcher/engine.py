@@ -284,6 +284,29 @@ PATCH_TEMPLATES: dict[VulnType, dict] = {
             "https://cheatsheetseries.owasp.org/cheatsheets/Django_Security_Cheat_Sheet.html",
         ],
     },
+    VulnType.INSECURE_COOKIE: {
+        "title": "Set Secure, HttpOnly and SameSite on Cookies",
+        "description": (
+            "Mark cookies Secure so they are only sent over HTTPS, HttpOnly so page scripts "
+            "cannot read them, and SameSite to limit cross-site sending."
+        ),
+        "original_code": (
+            'Set-Cookie: sessionid=abc123; Path=/'
+        ),
+        "patched_code": (
+            'Set-Cookie: sessionid=abc123; Path=/; Secure; HttpOnly; SameSite=Lax\n\n'
+            '# Express\n'
+            'res.cookie("sessionid", id, { secure: true, httpOnly: true, sameSite: "lax" });\n\n'
+            '# Django settings.py\n'
+            'SESSION_COOKIE_SECURE = True\n'
+            'SESSION_COOKIE_HTTPONLY = True\n'
+            'SESSION_COOKIE_SAMESITE = "Lax"'
+        ),
+        "references": [
+            "https://owasp.org/www-community/controls/SecureCookieAttribute",
+            "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html#cookies",
+        ],
+    },
     VulnType.COMMAND_INJECTION: {
         "title": "Avoid Shell Commands / Use Safe Subprocess Calls",
         "description": (

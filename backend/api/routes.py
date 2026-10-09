@@ -5,13 +5,13 @@ from collections import OrderedDict, defaultdict, deque
 from fastapi import APIRouter, HTTPException, Request
 
 from ..scanner.models import MAX_TOTAL_BYTES, FilesScanRequest, RepoScanRequest, ScanRequest, ScanResult, utcnow
-from ..scanner.dynamic.engine import DynamicScanner
+from ..scanner.dynamic.engine import DynamicScanner, TargetUnreachable
 from ..scanner.dynamic.netguard import UnsafeTargetError, validate_target_url
 from ..scanner.static.engine import StaticScanner
 from ..scanner.repo import RepoError, fetch_repo
 from ..patcher.engine import PatchEngine
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 MAX_STORED_SCANS = 200
 
 router = APIRouter(prefix="/api")
@@ -109,9 +109,12 @@ async def run_dynamic_scan(body: ScanRequest, request: Request):
     result = ScanResult(target=target, scan_type="dynamic")
     try:
         vulns = await scanner.scan(target)
+    except TargetUnreachable as exc:
+        raise HTTPException(status_code=502, detail=f"{exc} Check the URL and that the site is online.") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="The scan could not be completed against this target.") from exc
-    return finalize(result, vulns, scanner.warnings)
+    result.checks = scanner.checks
+    return finalize(result, vulns, scanner.warnings, {"pages_tested": 1 + len(scanner.discovered)})
 
 
 async def run_static(result: ScanResult, files: list[tuple[str, str]], stats: dict | None = None) -> ScanResult:
