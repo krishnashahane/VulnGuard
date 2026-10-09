@@ -61,6 +61,16 @@ Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
 
 For a same-origin deployment, build the frontend and serve `dist/` behind your preferred web server/reverse proxy with the FastAPI application mounted at `/api`.
 
+### Vercel
+
+`vercel.json` builds the frontend into `dist/` and serves the FastAPI app from `api/index.py` as a Python function under `/api/*`, with CSP, HSTS and frame-blocking headers on the static site.
+
+```bash
+vercel --prod
+```
+
+On Vercel the edge overwrites `X-Real-IP`, so it is trusted for rate limiting automatically; set `VULNGUARD_TRUST_PROXY=false` to opt out.
+
 ## Environment
 
 Copy the example configuration:
@@ -152,12 +162,13 @@ VulnGuard/
 │   └── scanner/
 │       ├── dynamic/         # DAST checks + SSRF guard
 │       └── static/          # SAST + dependency analysis
+├── api/index.py             # Vercel serverless entry
 ├── src/                     # React frontend
 ├── public/                  # static frontend assets
-├── dist/                    # generated frontend build output
 ├── tests/                   # backend tests
 ├── package.json
 ├── package-lock.json
+├── vercel.json
 ├── requirements.txt
 └── README.md
 ```

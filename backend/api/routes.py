@@ -68,7 +68,8 @@ repo_limiter = RateLimiter(limit=5, window=60)
 
 
 def client_ip(request: Request) -> str:
-    if os.getenv("VULNGUARD_TRUST_PROXY", "").lower() == "true":
+    # Vercel's edge overwrites x-real-ip / x-forwarded-for, so they are trustworthy there.
+    if os.getenv("VULNGUARD_TRUST_PROXY", "true" if os.getenv("VERCEL") else "").lower() == "true":
         forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for", "")
         if forwarded:
             candidate = forwarded.split(",")[0].strip()

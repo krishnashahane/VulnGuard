@@ -19,7 +19,8 @@ PATCH_TEMPLATES: dict[VulnType, dict] = {
             '# Example for requirements.txt:\n'
             'django==<fixed-version-from-finding>\n'
             'requests==<fixed-version-from-finding>\n\n'
-            '# CI step\n            'pip install pip-audit && pip-audit -r requirements.txt'
+            '# CI step\n'
+            'pip install pip-audit && pip-audit -r requirements.txt'
         ),
         "references": [
             "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/",

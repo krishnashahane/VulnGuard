@@ -12,3 +12,5 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+.vercel
+claude.md

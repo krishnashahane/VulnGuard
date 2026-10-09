@@ -10,7 +10,7 @@ from backend.main import app
 from backend.patcher.engine import PatchEngine
 from backend.scanner.dynamic.engine import DynamicScanner
 from backend.scanner.dynamic.netguard import GuardedTransport, UnsafeTargetError, validate_target_url
-from backend.scanner.models import VulnType
+from backend.scanner.models import Severity, VulnType
 from backend.scanner.static.engine import StaticScanner
 
 client = TestClient(app)
@@ -211,6 +211,15 @@ def test_secret_evidence_is_masked():
     assert vulns and "abcdefghijklmnop" not in vulns[0].evidence
 
 
+def test_secret_fixtures_are_not_critical():
+    scan = lambda code, name: [v for v in run(StaticScanner().scan(code, name)) if v.type == VulnType.HARDCODED_SECRET]
+    assert scan('secret_key = "secret-key"', "app.py") == []
+    fixture = scan('secret_key = "s3cr3t-Value-91x"', "tests/test_app.py")
+    assert fixture[0].severity == Severity.LOW
+    assert scan('secret_key = "s3cr3t-Value-91x"', "app.py")[0].severity == Severity.HIGH
+    assert scan('k = "AKIAABCDEFGHIJKLMNOP"', "tests/test_app.py")[0].severity == Severity.CRITICAL
+
+
 def test_flask_debug_is_critical():
     vulns = run(StaticScanner().scan("app.run(debug=True)", "a.py"))
     assert vulns[0].title == "Flask Debug Mode Enabled"
@@ -333,10 +342,8 @@ def test_repo_endpoint_rejects_non_github():
     assert r.status_code == 400
 
 
-def test_forwarded_ip_is_ignored_without_trusted_proxy(monkeypatch):
-    monkeypatch.delenv("VULNGUARD_TRUST_PROXY", raising=False)
-    from backend.api.routes import client_ip
-    request = Request({
+def _forwarded_request():
+    return Request({
         "type": "http",
         "method": "GET",
         "path": "/",
@@ -347,4 +354,19 @@ def test_forwarded_ip_is_ignored_without_trusted_proxy(monkeypatch):
         "server": ("testserver", 80),
         "scheme": "http",
     })
-    assert client_ip(request) == "127.0.0.1"
+
+
+def test_forwarded_ip_is_ignored_without_trusted_proxy(monkeypatch):
+    monkeypatch.delenv("VULNGUARD_TRUST_PROXY", raising=False)
+    monkeypatch.delenv("VERCEL", raising=False)
+    from backend.api.routes import client_ip
+    assert client_ip(_forwarded_request()) == "127.0.0.1"
+
+
+def test_forwarded_ip_is_trusted_on_vercel(monkeypatch):
+    monkeypatch.delenv("VULNGUARD_TRUST_PROXY", raising=False)
+    monkeypatch.setenv("VERCEL", "1")
+    from backend.api.routes import client_ip
+    assert client_ip(_forwarded_request()) == "203.0.113.99"
+    monkeypatch.setenv("VULNGUARD_TRUST_PROXY", "false")
+    assert client_ip(_forwarded_request()) == "127.0.0.1"

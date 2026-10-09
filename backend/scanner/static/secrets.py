@@ -1,4 +1,5 @@
 import re
+from pathlib import PurePosixPath
 
 from ..models import Vulnerability, VulnType, Severity
 
@@ -28,12 +29,28 @@ SECRET_PATTERNS = [
 ]
 
 
+# Values that merely restate the variable name ("secret-key", "password") are fixtures, not secrets.
+GENERIC_VALUES = {"secret", "secretkey", "password", "passwd", "pwd", "key", "token", "apikey", "jwtsecret"}
+TEST_DIRS = {"test", "tests", "__tests__", "spec", "specs", "fixtures", "testdata"}
+
+
+def is_test_path(filename: str) -> bool:
+    path = PurePosixPath(filename.replace("\\", "/").lower())
+    stem = path.stem
+    return (
+        any(part in TEST_DIRS for part in path.parts[:-1])
+        or stem.startswith("test_")
+        or stem.endswith(("_test", ".test", ".spec"))
+    )
+
+
 class SecretsScanner:
     """Detects hardcoded secrets, API keys, passwords, and tokens in source code."""
 
     async def scan(self, code: str, filename: str = "") -> list[Vulnerability]:
         vulns: list[Vulnerability] = []
         lines = code.split("\n")
+        in_tests = is_test_path(filename)
 
         for line_num, line in enumerate(lines, 1):
             stripped = line.strip()
@@ -46,13 +63,16 @@ class SecretsScanner:
                 if match:
                     # Avoid false positives on example/placeholder values
                     matched_text = match.group(0)
-                    if self._is_placeholder(matched_text):
+                    value = match.group(1) if match.re.groups and match.group(1) else matched_text
+                    if self._is_placeholder(matched_text) or re.sub(r"[\W_]", "", value.lower()) in GENERIC_VALUES:
                         continue
 
+                    # Recognisable credential formats stay severe anywhere; generic assignments in tests are fixtures.
+                    fixture = in_tests and bool(match.re.groups)
                     vulns.append(Vulnerability(
                         type=VulnType.HARDCODED_SECRET,
-                        severity=severity,
-                        title=f"{secret_type} Detected",
+                        severity=Severity.LOW if fixture else severity,
+                        title=f"{secret_type} Detected" + (" in Test Code" if fixture else ""),
                         description=(
                             f"A {secret_type.lower()} was found hardcoded in the source code. "
                             f"Secrets should be stored in environment variables or a secrets "
